@@ -36,6 +36,7 @@
         separator: ' - ',
         numberOfMonths: 1,
         numberOfColumns: 2,
+        moveCalendarToNewDate: false, // move calendar display month to show new date
         singleDate: true,
         autoclose: true,
         hideCloseButton: false,
@@ -976,6 +977,48 @@
             renderCalendar(this.el, this._opts);
         },
 
+        getCalendarDisplayedMonths: function()
+        {
+          let displayedMonths = [];
+          for (let i = 0; i < this._opts.numberOfMonths; i++) {
+            displayedMonths.push(this._opts.calendar[0].clone().add(i, 'month'));
+          }
+          return displayedMonths;
+        },
+
+         isCalendarDisplayingDate: function(date)
+        {
+          if (!date.isValid()) {
+            return false;
+          }
+
+           let displayedMonths = this.getCalendarDisplayedMonths();
+          for (let i = 0; i < displayedMonths.length; i++) {
+            if (date.isSame(displayedMonths[i], 'month')) {
+              return true;
+            }
+          }
+
+           // check if date is part of the visible dates from the previous month
+          let displayedPreviousMonthDates = this.el.querySelectorAll('.is-previous-month');
+          for (let i = 0; i < displayedPreviousMonthDates.length; i++) {
+            let calendarDay = moment(parseInt(displayedPreviousMonthDates[i].getAttribute('data-time')));
+            if (date.isSame(calendarDay, 'day')) {
+              return true;
+            }
+          }
+
+           // check if date is part of the visible dates from the next month
+          let displayedNextMonthDates = this.el.querySelectorAll('.is-next-month');
+          for (let i = 0; i < displayedNextMonthDates.length; i++) {
+            let calendarDay = moment(parseInt(displayedNextMonthDates[i].getAttribute('data-time')));
+            if (date.isSame(calendarDay, 'day')) {
+              return true;
+            }
+          }
+          return false;
+        },
+
         prevMonth: function()
         {
             this._opts.calendar[0] = moment(this._opts.calendar[0]).subtract(this._opts.numberOfMonths, 'month');
@@ -1088,6 +1131,9 @@
                 this._opts.onSelect.call(this, this.getStartDate(), this.getEndDate());
             }
             if (this.isShowing) {
+                if (this._opts.moveCalendarToNewDate && !this.isCalendarDisplayingDate(dateISO)) {
+                  this.gotoDate(dateISO)
+                }
                 updateDates(this.el, this._opts);
             }
         },
@@ -1123,6 +1169,10 @@
                 this._opts.onSelect.call(this, this.getStartDate(), this.getEndDate());
             }
             if (this.isShowing) {
+                if (this._opts.moveCalendarToNewDate && !this.isCalendarDisplayingDate(dateISO)) {
+                  // calculate what the first calendar month should be in order to show the new end date in the last calendar month
+                  this.gotoDate(dateISO.subtract(this._opts.numberOfMonths - 1, 'month'));
+                }
                 updateDates(this.el, this._opts);
             }
         },
