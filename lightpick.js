@@ -27,6 +27,8 @@
     defaults = {
         field: null,
         secondField: null,
+        onFieldInputChange: null, // function(newStartDate, startDate, endDate); dates are all moments
+        onSecondFieldInputChange: null, // function(newEndDate, startDate, endDate); dates are all moments
         firstDay: 1,
         parentEl: 'body',
         lang: 'auto',
@@ -34,14 +36,17 @@
         separator: ' - ',
         numberOfMonths: 1,
         numberOfColumns: 2,
+        moveCalendarToNewDate: false, // move calendar display month to show new date
         singleDate: true,
         autoclose: true,
+        hideCloseButton: false,
         repick: false,
         startDate: null,
         endDate: null,
         minDate: null,
         maxDate: null,
         disableDates: null,
+        isValidRangeSelection: null, // function(startDate, endDate); startDate and endDate can be undefined. Disables buttons, but not prevent invalid dates from being selected
         selectForward: false,
         selectBackward: false,
         minDays: null,
@@ -87,7 +92,7 @@
             + ''
             + '<button type="button" class="lightpick__previous-action" data-view-mode="' + viewMode + '">' + opts.locale.buttons.prev + '</button>'
             + '<button type="button" class="lightpick__next-action" data-view-mode="' + viewMode + '">' + opts.locale.buttons.next + '</button>'
-            + (!opts.autoclose ? '<button type="button" class="lightpick__close-action">' + opts.locale.buttons.close + '</button>'  : '')
+            + (!opts.autoclose && !opts.hideCloseButton ? '<button type="button" class="lightpick__close-action">' + opts.locale.buttons.close + '</button>'  : '')
             + '</div>';
     },
 
@@ -234,6 +239,26 @@
         if (opts.disableWeekends && (date.isoWeekday() == 6 || date.isoWeekday() == 7)) {
             day.className.push('is-disabled');
         }
+
+        // checks using opts.isValidRangeSelection()
+        if (typeof opts.isValidRangeSelection === 'function' && !opts.singleDate && !opts.repick) {
+          if (opts.startDate && !opts.endDate) { // selecting an end date (or start date before a start/end date switch)
+            if (date.isBefore(opts.startDate, 'date')) { // date could be a startDate and opts.startDate becomes the endDate with a swap
+              if (!opts.isValidRangeSelection(date, moment(opts.startDate))) {
+                day.className.push('is-disabled');
+              }
+            } else { // date could be an endDate
+              if (!opts.isValidRangeSelection(opts.startDate, date)) {
+                day.className.push('is-disabled');
+              }
+            }
+          } else { // date could be a startDate
+            if (!opts.isValidRangeSelection(moment(opts.startDate), date)) {
+              day.className.push('is-disabled');
+            }
+          }
+        }
+
 
         day.className = day.className.filter(function(value, index, self) {
             return self.indexOf(value) === index;
@@ -754,6 +779,20 @@
             }
         };
 
+        self._onFieldInputChange = function(e) {
+          if (typeof self._opts.onFieldInputChange === 'function') {
+            self._opts.onFieldInputChange(moment(opts.field.value), moment(self._opts.startDate), moment(self._opts.endDate));
+          }
+          self._onInputChange(e);
+        }
+
+         self._onSecondFieldInputChange = function(e) {
+          if (typeof self._opts.onSecondFieldInputChange === 'function') {
+            self._opts.onSecondFieldInputChange(moment(opts.secondField.value), moment(self._opts.startDate), moment(self._opts.endDate));
+          }
+          self._onInputChange(e);
+        }
+
         self._onInputFocus = function(e)
         {
             var target = e.target || e.srcElement;
@@ -826,12 +865,12 @@
 
         self.hide();
 
-        opts.field.addEventListener('change', self._onInputChange);
+        opts.field.addEventListener('change', self._onFieldInputChange);
         opts.field.addEventListener('click', self._onInputClick);
         opts.field.addEventListener('focus', self._onInputFocus);
 
         if (opts.secondField) {
-            opts.secondField.addEventListener('change', self._onInputChange);
+            opts.secondField.addEventListener('change', self._onSecondFieldInputChange);
             opts.secondField.addEventListener('click', self._onInputClick);
             opts.secondField.addEventListener('focus', self._onInputFocus);
         }
@@ -936,6 +975,48 @@
             this._opts.calendar[0].set('month', month);
 
             renderCalendar(this.el, this._opts);
+        },
+
+        getCalendarDisplayedMonths: function()
+        {
+          let displayedMonths = [];
+          for (let i = 0; i < this._opts.numberOfMonths; i++) {
+            displayedMonths.push(this._opts.calendar[0].clone().add(i, 'month'));
+          }
+          return displayedMonths;
+        },
+
+         isCalendarDisplayingDate: function(date)
+        {
+          if (!date.isValid()) {
+            return false;
+          }
+
+           let displayedMonths = this.getCalendarDisplayedMonths();
+          for (let i = 0; i < displayedMonths.length; i++) {
+            if (date.isSame(displayedMonths[i], 'month')) {
+              return true;
+            }
+          }
+
+           // check if date is part of the visible dates from the previous month
+          let displayedPreviousMonthDates = this.el.querySelectorAll('.is-previous-month');
+          for (let i = 0; i < displayedPreviousMonthDates.length; i++) {
+            let calendarDay = moment(parseInt(displayedPreviousMonthDates[i].getAttribute('data-time')));
+            if (date.isSame(calendarDay, 'day')) {
+              return true;
+            }
+          }
+
+           // check if date is part of the visible dates from the next month
+          let displayedNextMonthDates = this.el.querySelectorAll('.is-next-month');
+          for (let i = 0; i < displayedNextMonthDates.length; i++) {
+            let calendarDay = moment(parseInt(displayedNextMonthDates[i].getAttribute('data-time')));
+            if (date.isSame(calendarDay, 'day')) {
+              return true;
+            }
+          }
+          return false;
         },
 
         prevMonth: function()
@@ -1049,6 +1130,12 @@
             if (!preventOnSelect && typeof this._opts.onSelect === 'function') {
                 this._opts.onSelect.call(this, this.getStartDate(), this.getEndDate());
             }
+            if (this.isShowing) {
+                if (this._opts.moveCalendarToNewDate && !this.isCalendarDisplayingDate(dateISO)) {
+                  this.gotoDate(dateISO)
+                }
+                updateDates(this.el, this._opts);
+            }
         },
 
         setEndDate: function(date, preventOnSelect)
@@ -1080,6 +1167,13 @@
 
             if (!preventOnSelect && typeof this._opts.onSelect === 'function') {
                 this._opts.onSelect.call(this, this.getStartDate(), this.getEndDate());
+            }
+            if (this.isShowing) {
+                if (this._opts.moveCalendarToNewDate && !this.isCalendarDisplayingDate(dateISO)) {
+                  // calculate what the first calendar month should be in order to show the new end date in the last calendar month
+                  this.gotoDate(dateISO.subtract(this._opts.numberOfMonths - 1, 'month'));
+                }
+                updateDates(this.el, this._opts);
             }
         },
 
@@ -1213,12 +1307,12 @@
             this.el.removeEventListener('touchend', this._onMouseDown, true);
             this.el.removeEventListener('change', this._onChange, true);
 
-            opts.field.removeEventListener('change', this._onInputChange);
+            opts.field.removeEventListener('change', this._onFieldInputChange);
             opts.field.removeEventListener('click', this._onInputClick);
             opts.field.removeEventListener('focus', this._onInputFocus);
 
             if (opts.secondField) {
-                opts.secondField.removeEventListener('change', this._onInputChange);
+                opts.secondField.removeEventListener('change', this._onSecondFieldInputChange);
                 opts.secondField.removeEventListener('click', this._onInputClick);
                 opts.secondField.removeEventListener('focus', this._onInputFocus);
             }
