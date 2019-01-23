@@ -253,7 +253,7 @@
               }
             }
           } else { // date could be a startDate
-            if (!opts.isValidRangeSelection(moment(opts.startDate), date)) {
+            if (!opts.isValidRangeSelection(date)) {
               day.className.push('is-disabled');
             }
           }
