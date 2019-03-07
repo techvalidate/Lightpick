@@ -31,6 +31,7 @@
         onSecondFieldInputChange: null, // function(newEndDate, startDate, endDate); dates are all moments
         firstDay: 1,
         parentEl: 'body',
+        replaceContent: false, // Allow parentEl to only have one calendar at at time
         lang: 'auto',
         format: 'DD/MM/YYYY',
         separator: ' - ',
@@ -451,7 +452,11 @@
 
         self.el.innerHTML = html;
 
-        document.querySelector(opts.parentEl).appendChild(self.el);
+        var parent = document.querySelector(opts.parentEl);
+        if (opts.replaceContent) {
+            while (parent.firstChild && !parent.firstChild.remove());
+        }
+        parent.appendChild(self.el);
 
         self._onMouseDown = function(e)
         {
