@@ -31,7 +31,7 @@
         onSecondFieldInputChange: null, // function(newEndDate, startDate, endDate); dates are all moments
         firstDay: 1,
         parentEl: 'body',
-        replaceContent: false, // Allow parentEl to only have one calendar at at time
+        parentNode: null, // Specify the actual node instead of the querySelector contents
         lang: 'auto',
         format: 'DD/MM/YYYY',
         separator: ' - ',
@@ -425,7 +425,7 @@
 
         self.el.className = 'lightpick lightpick--' + opts.numberOfColumns + '-columns is-hidden';
 
-        if (opts.parentEl !== 'body') {
+        if (opts.parentNode || opts.parentEl !== 'body') {
             self.el.className += ' lightpick--inlined';
         }
 
@@ -452,9 +452,10 @@
 
         self.el.innerHTML = html;
 
-        var parent = document.querySelector(opts.parentEl);
-        if (opts.replaceContent) {
-            while (parent.firstChild && !parent.firstChild.remove());
+        // Use parentNode if it is specified
+        var parent = opts.parentNode;
+        if (!parent) {
+            parent = document.querySelector(opts.parentEl)
         }
         parent.appendChild(self.el);
 
